@@ -47,10 +47,29 @@ public sealed class ForestSceneBuilder : MonoBehaviour
         ColorUtility.TryParseHtmlString("#" + hexB, out var b);
         var shader = Shader.Find("Standard") ?? Shader.Find("Diffuse");
         var result = new Material(shader) { name = name };
-        var texture = new Texture2D(16, 16) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
-        for (var y = 0; y < 16; y++)
-        for (var x = 0; x < 16; x++)
-            texture.SetPixel(x, y, Color.Lerp(a, b, (Mathf.Sin(x * 1.7f + y * .8f) + 1f) * .5f));
+        var texture = new Texture2D(32, 32) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Point };
+        var random = new System.Random(name.GetHashCode());
+        for (var y = 0; y < 32; y++)
+        for (var x = 0; x < 32; x++)
+        {
+            var variation = (float)random.NextDouble();
+            if (name.Contains("roof"))
+            {
+                var tileRow = y / 5;
+                var tileColumn = (x + (tileRow % 2) * 4) / 8;
+                variation = ((tileRow + tileColumn) % 2 == 0 ? .32f : .72f) + (y % 5 == 0 ? -.20f : 0f);
+            }
+            else if (name.Contains("wall") || name.Contains("wood") || name.Contains("Bark"))
+            {
+                variation = (x % 7 == 0 ? .18f : .58f) + (float)random.NextDouble() * .20f;
+                if (name.Contains("wall")) variation = (y % 6 == 0 ? .12f : variation);
+            }
+            else if (name.Contains("stone"))
+                variation = (x / 7 + y / 6) % 2 == 0 ? .35f : .72f;
+            else if (name.Contains("Meadow"))
+                variation = .35f + (float)random.NextDouble() * .45f;
+            texture.SetPixel(x, y, Color.Lerp(a, b, Mathf.Clamp01(variation)));
+        }
         texture.Apply();
         result.mainTexture = texture;
         return result;
@@ -62,6 +81,17 @@ public sealed class ForestSceneBuilder : MonoBehaviour
         RenderSettings.fogColor = new Color(.54f, .7f, .68f);
         RenderSettings.fogDensity = .009f;
         RenderSettings.ambientLight = new Color(.45f, .54f, .48f);
+        var skyShader = Shader.Find("Skybox/Procedural");
+        if (skyShader != null)
+        {
+            var sky = new Material(skyShader);
+            sky.SetColor("_SkyTint", new Color(.34f, .58f, .86f));
+            sky.SetColor("_GroundColor", new Color(.42f, .48f, .35f));
+            sky.SetFloat("_SunSize", .055f);
+            sky.SetFloat("_AtmosphereThickness", .75f);
+            sky.SetFloat("_Exposure", 1.25f);
+            RenderSettings.skybox = sky;
+        }
         var sun = new GameObject("Golden hour sun");
         sun.transform.SetParent(root);
         sun.transform.rotation = Quaternion.Euler(42, -28, 0);
@@ -71,7 +101,7 @@ public sealed class ForestSceneBuilder : MonoBehaviour
         camera.tag = "MainCamera"; camera.transform.SetParent(root);
         camera.transform.position = new Vector3(13.5f, 8.5f, -17.5f); camera.transform.LookAt(new Vector3(0, 2.2f, 0));
         var component = camera.AddComponent<Camera>();
-        component.clearFlags = CameraClearFlags.SolidColor; component.backgroundColor = new Color(.39f, .62f, .76f); component.fieldOfView = 54;
+        component.clearFlags = CameraClearFlags.Skybox; component.fieldOfView = 54;
     }
 
     private void MakeGround()
@@ -92,8 +122,8 @@ public sealed class ForestSceneBuilder : MonoBehaviour
         P(PrimitiveType.Sphere, "Door handle", new Vector3(.38f, 1.55f, -2.14f), new Vector3(.13f, .13f, .08f), window, cabin).GetComponent<Collider>().enabled = false;
         Window(new Vector3(-1.9f, 2.15f, -2.03f), cabin); Window(new Vector3(1.9f, 2.15f, -2.03f), cabin);
         Window(new Vector3(-3.03f, 2.15f, .25f), cabin, true); Window(new Vector3(3.03f, 2.15f, .25f), cabin, true);
-        var left = P(PrimitiveType.Cube, "Roof left", new Vector3(-1.57f, 4.32f, .35f), new Vector3(4.05f, .34f, 5.45f), roof, cabin); left.transform.rotation = Quaternion.Euler(0, 0, -32);
-        var right = P(PrimitiveType.Cube, "Roof right", new Vector3(1.57f, 4.32f, .35f), new Vector3(4.05f, .34f, 5.45f), roof, cabin); right.transform.rotation = Quaternion.Euler(0, 0, 32);
+        var left = P(PrimitiveType.Cube, "Roof left", new Vector3(-1.57f, 4.32f, .35f), new Vector3(4.05f, .34f, 5.45f), roof, cabin); left.transform.rotation = Quaternion.Euler(0, 0, 32);
+        var right = P(PrimitiveType.Cube, "Roof right", new Vector3(1.57f, 4.32f, .35f), new Vector3(4.05f, .34f, 5.45f), roof, cabin); right.transform.rotation = Quaternion.Euler(0, 0, -32);
         P(PrimitiveType.Cube, "Roof ridge", new Vector3(0, 5.14f, .35f), new Vector3(.28f, .22f, 5.35f), darkWood, cabin);
         P(PrimitiveType.Cylinder, "Chimney", new Vector3(2.05f, 5.25f, .95f), new Vector3(.48f, 1.55f, .48f), stone, cabin);
         var porch = Group("Porch", cabin);
